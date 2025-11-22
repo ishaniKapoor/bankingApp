@@ -2,7 +2,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { TRPCError } from "@trpc/server";
-import { publicProcedure, router } from "../trpc";
+import { publicProcedure, protectedProcedure, router } from "../trpc";
 import { db } from "@/lib/db";
 import { users, sessions } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -90,6 +90,14 @@ export const authRouter = router({
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
 
+      // Invalidate any existing sessions for this user before creating a new one
+      try {
+        await db.delete(sessions).where(eq(sessions.userId, user.id));
+      } catch (e) {
+        // log but continue
+        console.warn("Failed to clear existing sessions for user", user.id, e);
+      }
+
       await db.insert(sessions).values({
         userId: user.id,
         token,
@@ -141,6 +149,13 @@ export const authRouter = router({
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
 
+      // Invalidate other sessions for this user to enforce single active session
+      try {
+        await db.delete(sessions).where(eq(sessions.userId, user.id));
+      } catch (e) {
+        console.warn("Failed to clear existing sessions for user", user.id, e);
+      }
+
       await db.insert(sessions).values({
         userId: user.id,
         token,
@@ -182,5 +197,18 @@ export const authRouter = router({
     }
 
     return { success: true, message: ctx.user ? "Logged out successfully" : "No active session" };
+  }),
+  // Invalidate all sessions for the current authenticated user
+  invalidateSessions: protectedProcedure.mutation(async ({ ctx }) => {
+    if (!ctx.user) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
+    }
+
+    try {
+      await db.delete(sessions).where(eq(sessions.userId, ctx.user.id));
+      return { success: true, message: "All sessions invalidated" };
+    } catch (e) {
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to invalidate sessions" });
+    }
   }),
 });
