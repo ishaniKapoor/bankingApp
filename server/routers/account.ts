@@ -77,7 +77,8 @@ export const accountRouter = router({
     .input(
       z.object({
         accountId: z.number(),
-        amount: z.number().positive(),
+        // require a minimum of $0.01 explicitly
+        amount: z.number().min(0.01),
         fundingSource: z.object({
           type: z.enum(["card", "bank"]),
           accountNumber: z.string(),
@@ -86,7 +87,12 @@ export const accountRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const amount = parseFloat(input.amount.toString());
+      // ensure we have a number >= 0.01 and round to 2 decimals for storage
+      const amount = Math.round(parseFloat(input.amount.toString()) * 100) / 100;
+
+      if (isNaN(amount) || amount < 0.01) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Amount must be at least $0.01" });
+      }
 
       // Verify account belongs to user
       const account = await db

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { trpc } from "@/lib/trpc/client";
 import Link from "next/link";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { US_STATE_CODES } from "@/lib/validators/states";
 
 type SignupFormData = {
@@ -195,21 +196,28 @@ export default function SignupPage() {
               </div>
 
               <div>
-                <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700">
-                  Phone Number
-                </label>
+                <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700">Phone Number</label>
                 <input
                   {...register("phoneNumber", {
                     required: "Phone number is required",
-                    pattern: {
-                      value: /^\d{10}$/,
-                      message: "Phone number must be 10 digits",
+                    validate: (value) => {
+                      if (!value) return "Phone number is required";
+                      try {
+                        const parsed = parsePhoneNumberFromString(value);
+                        if (!parsed || !parsed.isValid()) {
+                          return "Enter a valid international phone number, e.g. +15551234567";
+                        }
+                        return true;
+                      } catch (e) {
+                        return "Enter a valid phone number";
+                      }
                     },
                   })}
                   type="tel"
-                  placeholder="1234567890"
+                  placeholder="+1 555-123-4567"
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
                 />
+                <p className="mt-1 text-sm text-gray-500">Use international format with country code, e.g. +1 555-123-4567</p>
                 {errors.phoneNumber && <p className="mt-1 text-sm text-red-600">{errors.phoneNumber.message}</p>}
               </div>
 

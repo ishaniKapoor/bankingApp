@@ -8,6 +8,7 @@ import { users, sessions } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { normalizeEmail, checkTldTypo } from "../utils/email";
 import { isAtLeastAge, isFutureDate, isValidStateCode } from "../utils/validators";
+import { formatToE164 } from "../utils/phone";
 
 export const authRouter = router({
   signup: publicProcedure
@@ -18,7 +19,11 @@ export const authRouter = router({
         password: z.string().min(8),
         firstName: z.string().min(1),
         lastName: z.string().min(1),
-        phoneNumber: z.string().regex(/^\+?\d{10,15}$/),
+        phoneNumber: z.string().refine((val) => {
+          // validate and normalize to E.164; require a valid international phone
+          const formatted = formatToE164(val);
+          return formatted !== null;
+        }, { message: "Invalid phone number; use international format like +15551234567" }),
         dateOfBirth: z.string().refine((val) => {
           // must be a valid date, not in future, and at least 18 years old
           if (isFutureDate(val)) return false;
