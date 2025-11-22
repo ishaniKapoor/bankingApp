@@ -53,20 +53,14 @@ export const accountRouter = router({
         status: "active",
       });
 
-      // Fetch the created account
-      const account = await db.select().from(accounts).where(eq(accounts.accountNumber, accountNumber!)).get();
+      // Fetch the created account; if insert didn't persist, treat as failure
+      const created = await db.select().from(accounts).where(eq(accounts.accountNumber, accountNumber!)).get();
+      if (!created) {
+        // Log and throw an error so the client doesn't assume a fake balance
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create account" });
+      }
 
-      return (
-        account || {
-          id: 0,
-          userId: ctx.user.id,
-          accountNumber: accountNumber!,
-          accountType: input.accountType,
-          balance: 100,
-          status: "pending",
-          createdAt: new Date().toISOString(),
-        }
-      );
+      return created;
     }),
 
   getAccounts: protectedProcedure.query(async ({ ctx }) => {
