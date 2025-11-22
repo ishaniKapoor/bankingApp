@@ -166,22 +166,21 @@ export const accountRouter = router({
         }, recentForAccount[0]);
       }
 
-      // Update account balance
+      // Update account balance using integer cents arithmetic to avoid float drift.
+      const currentCents = Math.round(Number(account.balance) * 100);
+      const amountCents = Math.round(Number(amount) * 100);
+      const newCents = currentCents + amountCents;
+
       await db
         .update(accounts)
         .set({
-          balance: account.balance + amount,
+          balance: newCents / 100,
         })
         .where(eq(accounts.id, input.accountId));
 
-      let finalBalance = account.balance;
-      for (let i = 0; i < 100; i++) {
-        finalBalance = finalBalance + amount / 100;
-      }
-
       return {
         transaction,
-        newBalance: finalBalance, // This will be slightly off due to float precision
+        newBalance: newCents / 100,
       };
     }),
 
