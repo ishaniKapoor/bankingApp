@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../trpc";
 import { db } from "@/lib/db";
 import { accounts, transactions } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { isValidCardNumber } from "../utils/payment";
 import { isValidRoutingNumber } from "../utils/routing";
 
@@ -188,6 +188,8 @@ export const accountRouter = router({
     .input(
       z.object({
         accountId: z.number(),
+        page: z.number().nonnegative().optional(),
+        pageSize: z.number().positive().optional(),
       })
     )
     .query(async ({ input, ctx }) => {
@@ -205,34 +207,26 @@ export const accountRouter = router({
         });
       }
 
+      // Pagination defaults
+      const page = input.page ?? 0;
+      const pageSize = Math.min(input.pageSize ?? 50, 500);
+
+      // Use a single SQL query with ORDER BY and LIMIT/OFFSET to let the DB optimize
       const accountTransactions = await db
         .select()
         .from(transactions)
-        .where(eq(transactions.accountId, input.accountId));
+        .where(eq(transactions.accountId, input.accountId))
+        .orderBy(sql`COALESCE(${transactions.processedAt}, ${transactions.createdAt}) DESC, ${transactions.createdAt} DESC, ${transactions.id} DESC`)
+        .limit(pageSize)
+        .offset(page * pageSize);
 
-      // Enrich and sort deterministically: prefer `processedAt` (most-recent first),
-      // then `createdAt` (most-recent first), then `id` as a final tie-breaker.
-      const enrichedTransactions = [];
-      for (const transaction of accountTransactions) {
-        const accountDetails = await db.select().from(accounts).where(eq(accounts.id, transaction.accountId)).get();
+      // Fetch account details once to enrich transactions
+      const accountDetails = await db.select().from(accounts).where(eq(accounts.id, input.accountId)).get();
 
-        enrichedTransactions.push({
-          ...transaction,
-          accountType: accountDetails?.accountType,
-        });
-      }
-
-      enrichedTransactions.sort((a: any, b: any) => {
-        const aKey = a.processedAt || a.createdAt;
-        const bKey = b.processedAt || b.createdAt;
-        const aTime = new Date(aKey).getTime();
-        const bTime = new Date(bKey).getTime();
-        if (bTime !== aTime) return bTime - aTime;
-        const aCreated = new Date(a.createdAt).getTime();
-        const bCreated = new Date(b.createdAt).getTime();
-        if (bCreated !== aCreated) return bCreated - aCreated;
-        return (b.id || 0) - (a.id || 0);
-      });
+      const enrichedTransactions = accountTransactions.map((transaction: any) => ({
+        ...transaction,
+        accountType: accountDetails?.accountType,
+      }));
 
       return enrichedTransactions;
     }),
