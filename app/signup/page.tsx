@@ -217,7 +217,28 @@ export default function SignupPage() {
                   Date of Birth
                 </label>
                 <input
-                  {...register("dateOfBirth", { required: "Date of birth is required" })}
+                  {...register("dateOfBirth", {
+                    required: "Date of birth is required",
+                    validate: {
+                      notFuture: (value) => {
+                        if (!value) return "Date of birth is required";
+                        const d = new Date(value);
+                        if (isNaN(d.getTime())) return "Invalid date";
+                        const today = new Date();
+                        if (d.setHours(0, 0, 0, 0) > today.setHours(0, 0, 0, 0)) return "Date of birth cannot be in the future";
+                        return true;
+                      },
+                      minAge: (value) => {
+                        if (!value) return "Date of birth is required";
+                        const today = new Date();
+                        const b = new Date(value);
+                        let age = today.getFullYear() - b.getFullYear();
+                        const m = today.getMonth() - b.getMonth();
+                        if (m < 0 || (m === 0 && today.getDate() < b.getDate())) age--;
+                        return age >= 18 || "You must be at least 18 years old";
+                      },
+                    },
+                  })}
                   type="date"
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
                 />

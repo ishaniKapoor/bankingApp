@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { users, sessions } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { normalizeEmail, checkTldTypo } from "../utils/email";
+import { isAtLeastAge, isFutureDate } from "../utils/validators";
 
 export const authRouter = router({
   signup: publicProcedure
@@ -18,7 +19,11 @@ export const authRouter = router({
         firstName: z.string().min(1),
         lastName: z.string().min(1),
         phoneNumber: z.string().regex(/^\+?\d{10,15}$/),
-        dateOfBirth: z.string(),
+        dateOfBirth: z.string().refine((val) => {
+          // must be a valid date, not in future, and at least 18 years old
+          if (isFutureDate(val)) return false;
+          return isAtLeastAge(val, 18);
+        }, { message: "You must be at least 18 years old and provide a valid birth date" }),
         ssn: z.string().regex(/^\d{9}$/),
         address: z.string().min(1),
         city: z.string().min(1),

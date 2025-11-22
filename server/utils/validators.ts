@@ -1,0 +1,32 @@
+export function parseDateString(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
+
+export function isFutureDate(dateStr: string): boolean {
+  const d = parseDateString(dateStr);
+  if (!d) return false;
+  const today = new Date();
+  // Compare only date portion
+  return d.setHours(0, 0, 0, 0) > today.setHours(0, 0, 0, 0);
+}
+
+export function calculateAge(dateStr: string): number | null {
+  const d = parseDateString(dateStr);
+  if (!d) return null;
+  const today = new Date();
+  let age = today.getFullYear() - d.getFullYear();
+  const m = today.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < d.getDate())) {
+    age--;
+  }
+  return age;
+}
+
+export function isAtLeastAge(dateStr: string, minAge = 18): boolean {
+  const age = calculateAge(dateStr);
+  if (age === null) return false;
+  return age >= minAge;
+}
