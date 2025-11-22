@@ -34,6 +34,7 @@ export function FundingModal({ accountId, onClose, onSuccess }: FundingModalProp
   const fundingType = watch("fundingType");
     const accountNumberValue = watch("accountNumber");
     const detectedCardType = fundingType === "card" && accountNumberValue ? getCardType(accountNumberValue) : null;
+  const utils = trpc.useContext();
   const fundAccountMutation = trpc.account.fundAccount.useMutation();
 
   const onSubmit = async (data: FundingFormData) => {
@@ -51,6 +52,14 @@ export function FundingModal({ accountId, onClose, onSuccess }: FundingModalProp
           routingNumber: data.routingNumber,
         },
       });
+
+      // Invalidate the transactions list for this account so the UI shows all new transactions
+      try {
+        await utils.account.getTransactions.invalidate({ accountId });
+      } catch (e) {
+        // ignore invalidate errors; we'll still call onSuccess to refresh accounts
+        console.warn('Failed to invalidate transactions cache', e);
+      }
 
       onSuccess();
     } catch (err: any) {
