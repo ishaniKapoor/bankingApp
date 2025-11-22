@@ -54,11 +54,29 @@ export async function createContext(opts: CreateNextContextOptions | FetchCreate
 
       const session = await db.select().from(sessions).where(eq(sessions.token, token)).get();
 
-      if (session && new Date(session.expiresAt) > new Date()) {
-        user = await db.select().from(users).where(eq(users.id, decoded.userId)).get();
-        const expiresIn = new Date(session.expiresAt).getTime() - new Date().getTime();
-        if (expiresIn < 60000) {
-          console.warn("Session about to expire");
+      // Enforce session expiry with a small safety leeway to avoid accepting sessions
+      // that are about to expire (race conditions). Configure with SESSION_LEEWAY_SECONDS.
+      const leewaySeconds = parseInt(process.env.SESSION_LEEWAY_SECONDS || "60", 10);
+      const now = Date.now();
+
+      if (session) {
+        const exp = new Date(session.expiresAt).getTime();
+
+        // If session expiry is strictly greater than now + leeway, treat it as valid
+        if (exp > now + leewaySeconds * 1000) {
+          user = await db.select().from(users).where(eq(users.id, decoded.userId)).get();
+          const expiresIn = exp - now;
+          if (expiresIn < 60000) {
+            console.warn("Session about to expire");
+          }
+        } else {
+          // Session is expired or within the safety leeway — delete it server-side and don't authenticate
+          try {
+            await db.delete(sessions).where(eq(sessions.token, token));
+            console.warn("Deleted expired/near-expiry session", token);
+          } catch (e) {
+            console.warn("Failed to delete expired session", e);
+          }
         }
       }
     } catch (error) {

@@ -173,30 +173,46 @@ export const authRouter = router({
     }),
 
   logout: publicProcedure.mutation(async ({ ctx }) => {
-    if (ctx.user) {
-      // Delete session from database
-      let token: string | undefined;
-      if ("cookies" in ctx.req) {
-        token = (ctx.req as any).cookies.session;
-      } else {
-        const cookieHeader = ctx.req.headers.get?.("cookie") || (ctx.req.headers as any).cookie;
-        token = cookieHeader
-          ?.split("; ")
-          .find((c: string) => c.startsWith("session="))
-          ?.split("=")[1];
-      }
-      if (token) {
-        await db.delete(sessions).where(eq(sessions.token, token));
-      }
+    // Attempt to determine the session token from cookie/header
+    let token: string | undefined;
+    if ("cookies" in ctx.req) {
+      token = (ctx.req as any).cookies?.session;
+    } else {
+      const cookieHeader = ctx.req.headers.get?.("cookie") || (ctx.req.headers as any).cookie;
+      token = cookieHeader
+        ?.split("; ")
+        .find((c: string) => c.startsWith("session="))
+        ?.split("=")[1];
     }
 
+    let deleted = false;
+    try {
+      if (token) {
+        // Check whether a session with this token exists
+        const existing = await db.select().from(sessions).where(eq(sessions.token, token)).get();
+        if (existing) {
+          await db.delete(sessions).where(eq(sessions.token, token));
+          deleted = true;
+        }
+      }
+    } catch (e) {
+      // Log error but proceed to clear cookie client-side
+      console.warn("Error deleting session during logout", e);
+    }
+
+    // Clear cookie on client regardless
     if ("setHeader" in ctx.res) {
       ctx.res.setHeader("Set-Cookie", `session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
     } else {
       (ctx.res as Headers).set("Set-Cookie", `session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
     }
 
-    return { success: true, message: ctx.user ? "Logged out successfully" : "No active session" };
+    if (deleted) {
+      return { success: true, message: "Logged out successfully" };
+    }
+
+    // If we couldn't find or delete a server-side session, report that to the client
+    return { success: false, message: ctx.user ? "No active server session found" : "No active session" };
   }),
   // Invalidate all sessions for the current authenticated user
   invalidateSessions: protectedProcedure.mutation(async ({ ctx }) => {
