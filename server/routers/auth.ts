@@ -8,6 +8,7 @@ import { users, sessions } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { normalizeEmail, checkTldTypo } from "../utils/email";
 import { isAtLeastAge, isFutureDate, isValidStateCode } from "../utils/validators";
+import { isStrongPassword, passwordFailureReason } from "../utils/password";
 import { formatToE164 } from "../utils/phone";
 
 export const authRouter = router({
@@ -16,7 +17,10 @@ export const authRouter = router({
       z.object({
         // accept original casing from client; we'll normalize server-side
         email: z.string().email(),
-        password: z.string().min(8),
+        password: z.string().min(12).refine((p) => isStrongPassword(p), {
+          message:
+            "Password must be at least 12 characters and include uppercase, lowercase, a number, and a special character",
+        }),
         firstName: z.string().min(1),
         lastName: z.string().min(1),
         phoneNumber: z.string().refine((val) => {

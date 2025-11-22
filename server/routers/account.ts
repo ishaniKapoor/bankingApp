@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { accounts, transactions } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { isValidCardNumber } from "../utils/payment";
+import { isValidRoutingNumber } from "../utils/routing";
 
 function generateAccountNumber(): string {
   return Math.floor(Math.random() * 1000000000)
@@ -101,11 +102,18 @@ export const accountRouter = router({
           throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid card number" });
         }
       } else if (input.fundingSource.type === "bank") {
-        // basic routing number check: 9 digits
-        if (!/^\d{9}$/.test(input.fundingSource.accountNumber)) {
+        // Basic bank account number check (digits only)
+        if (!/^\d+$/.test(input.fundingSource.accountNumber)) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid bank account number" });
         }
-        if (input.fundingSource.routingNumber && !/^\d{9}$/.test(input.fundingSource.routingNumber)) {
+
+        // Require routing number for ACH/bank transfers
+        if (!input.fundingSource.routingNumber) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Routing number is required for bank transfers" });
+        }
+
+        // Validate routing number format and checksum
+        if (!isValidRoutingNumber(input.fundingSource.routingNumber)) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid routing number" });
         }
       }

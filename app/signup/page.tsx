@@ -131,21 +131,25 @@ export default function SignupPage() {
                   {...register("password", {
                     required: "Password is required",
                     minLength: {
-                      value: 8,
-                      message: "Password must be at least 8 characters",
+                      value: 12,
+                      message: "Password must be at least 12 characters",
                     },
                     validate: {
                       notCommon: (value) => {
-                        const commonPasswords = ["password", "12345678", "qwerty"];
+                        const commonPasswords = ["password", "12345678", "qwerty", "1234567890", "iloveyou"];
                         return !commonPasswords.includes(value.toLowerCase()) || "Password is too common";
                       },
-                      hasNumber: (value) => /\d/.test(value) || "Password must contain a number",
+                      hasLower: (value) => /[a-z]/.test(value) || "Password must include a lowercase letter",
+                      hasUpper: (value) => /[A-Z]/.test(value) || "Password must include an uppercase letter",
+                      hasNumber: (value) => /\d/.test(value) || "Password must include a number",
+                      hasSpecial: (value) => /[^A-Za-z0-9]/.test(value) || "Password must include a special character",
                     },
                   })}
                   type="password"
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
                 />
                 {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>}
+                <p className="mt-1 text-sm text-gray-500">Password must be at least 12 characters and include uppercase, lowercase, a number, and a special character.</p>
               </div>
 
               <div>
