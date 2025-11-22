@@ -7,7 +7,8 @@ const dbPath = "bank.db";
 const sqlite = new Database(dbPath);
 export const db = drizzle(sqlite, { schema });
 
-const connections: Database.Database[] = [];
+// Track connections so we can close them on shutdown to avoid resource leaks
+const connections: Database.Database[] = [sqlite];
 
 export function initDb() {
   const conn = new Database(dbPath);
@@ -64,3 +65,35 @@ export function initDb() {
 
 // Initialize database on import
 initDb();
+
+export function closeAllDbConnections() {
+  for (const conn of connections) {
+    try {
+      conn.close();
+    } catch (e) {
+      // log but continue
+      // eslint-disable-next-line no-console
+      console.warn('Error closing DB connection', e);
+    }
+  }
+}
+
+// Ensure DB connections are closed on process exit/signals to prevent resource leaks
+function handleShutdown(signal?: string) {
+  // eslint-disable-next-line no-console
+  console.log('Shutting down DB connections', signal || 'exit');
+  try {
+    closeAllDbConnections();
+  } finally {
+    if (signal && signal !== 'exit') process.exit(0);
+  }
+}
+
+process.on('exit', () => handleShutdown('exit'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('uncaughtException', (err) => {
+  // eslint-disable-next-line no-console
+  console.error('Uncaught exception, closing DB connections', err);
+  handleShutdown('uncaughtException');
+});
