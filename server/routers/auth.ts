@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { users, sessions } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { normalizeEmail, checkTldTypo } from "../utils/email";
-import { isAtLeastAge, isFutureDate } from "../utils/validators";
+import { isAtLeastAge, isFutureDate, isValidStateCode } from "../utils/validators";
 
 export const authRouter = router({
   signup: publicProcedure
@@ -27,7 +27,9 @@ export const authRouter = router({
         ssn: z.string().regex(/^\d{9}$/),
         address: z.string().min(1),
         city: z.string().min(1),
-        state: z.string().length(2).toUpperCase(),
+        state: z.string().length(2).transform((s) => s.toUpperCase()).refine((s) => isValidStateCode(s), {
+          message: "Invalid US state code",
+        }),
         zipCode: z.string().regex(/^\d{5}$/),
       })
     )
