@@ -153,8 +153,18 @@ export const accountRouter = router({
         processedAt: new Date().toISOString(),
       });
 
-      // Fetch the created transaction
-      const transaction = await db.select().from(transactions).orderBy(transactions.createdAt).limit(1).get();
+      // Fetch the created transaction for this account. We intentionally select by account
+      // and pick the most-recent `createdAt` row in JS to avoid relying on DB-specific
+      // orderBy semantics across drivers.
+      const recentForAccount = await db.select().from(transactions).where(eq(transactions.accountId, input.accountId));
+      let transaction = null as any;
+      if (recentForAccount && recentForAccount.length > 0) {
+        transaction = recentForAccount.reduce((best: any, cur: any) => {
+          const bestTime = new Date(best.createdAt).getTime();
+          const curTime = new Date(cur.createdAt).getTime();
+          return curTime > bestTime ? cur : best;
+        }, recentForAccount[0]);
+      }
 
       // Update account balance
       await db
@@ -201,6 +211,8 @@ export const accountRouter = router({
         .from(transactions)
         .where(eq(transactions.accountId, input.accountId));
 
+      // Enrich and sort deterministically: prefer `processedAt` (most-recent first),
+      // then `createdAt` (most-recent first), then `id` as a final tie-breaker.
       const enrichedTransactions = [];
       for (const transaction of accountTransactions) {
         const accountDetails = await db.select().from(accounts).where(eq(accounts.id, transaction.accountId)).get();
@@ -210,6 +222,18 @@ export const accountRouter = router({
           accountType: accountDetails?.accountType,
         });
       }
+
+      enrichedTransactions.sort((a: any, b: any) => {
+        const aKey = a.processedAt || a.createdAt;
+        const bKey = b.processedAt || b.createdAt;
+        const aTime = new Date(aKey).getTime();
+        const bTime = new Date(bKey).getTime();
+        if (bTime !== aTime) return bTime - aTime;
+        const aCreated = new Date(a.createdAt).getTime();
+        const bCreated = new Date(b.createdAt).getTime();
+        if (bCreated !== aCreated) return bCreated - aCreated;
+        return (b.id || 0) - (a.id || 0);
+      });
 
       return enrichedTransactions;
     }),

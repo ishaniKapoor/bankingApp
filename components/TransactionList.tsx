@@ -60,7 +60,7 @@ export function TransactionList({ accountId }: TransactionListProps) {
           {transactions.map((transaction) => (
             <tr key={transaction.id}>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                {formatDate(transaction.createdAt!)}
+                {formatDate((transaction.processedAt || transaction.createdAt) as string)}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                 <span className={`capitalize ${transaction.type === "deposit" ? "text-green-600" : "text-red-600"}`}>
