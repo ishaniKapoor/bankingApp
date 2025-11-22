@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { trpc } from "@/lib/trpc/client";
+import { isValidCardNumber as isValidCardNumberUtil } from "@/server/utils/payment";
 
 interface FundingModalProps {
   accountId: number;
@@ -112,14 +113,17 @@ export function FundingModal({ accountId, onClose, onSuccess }: FundingModalProp
             <input
               {...register("accountNumber", {
                 required: `${fundingType === "card" ? "Card" : "Account"} number is required`,
-                pattern: {
-                  value: fundingType === "card" ? /^\d{16}$/ : /^\d+$/,
-                  message: fundingType === "card" ? "Card number must be 16 digits" : "Invalid account number",
+                validate: {
+                  pattern: (value) => {
+                    if (fundingType !== "card") return /^\d+$/.test(value) || "Invalid account number";
+                    // allow spaces/hyphens and different card lengths; validate with Luhn
+                    return isValidCardNumberUtil(value) || "Invalid card number";
+                  },
                 },
                 validate: {
                   validCard: (value) => {
                     if (fundingType !== "card") return true;
-                    return value.startsWith("4") || value.startsWith("5") || "Invalid card number";
+                    return isValidCardNumberUtil(value) || "Invalid card number";
                   },
                 },
               })}

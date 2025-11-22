@@ -4,6 +4,7 @@ import { protectedProcedure, router } from "../trpc";
 import { db } from "@/lib/db";
 import { accounts, transactions } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { isValidCardNumber } from "../utils/payment";
 
 function generateAccountNumber(): string {
   return Math.floor(Math.random() * 1000000000)
@@ -92,6 +93,21 @@ export const accountRouter = router({
 
       if (isNaN(amount) || amount < 0.01) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Amount must be at least $0.01" });
+      }
+
+      // Validate funding source details
+      if (input.fundingSource.type === "card") {
+        if (!isValidCardNumber(input.fundingSource.accountNumber)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid card number" });
+        }
+      } else if (input.fundingSource.type === "bank") {
+        // basic routing number check: 9 digits
+        if (!/^\d{9}$/.test(input.fundingSource.accountNumber)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid bank account number" });
+        }
+        if (input.fundingSource.routingNumber && !/^\d{9}$/.test(input.fundingSource.routingNumber)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid routing number" });
+        }
       }
 
       // Verify account belongs to user
