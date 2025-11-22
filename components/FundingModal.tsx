@@ -71,17 +71,21 @@ export function FundingModal({ accountId, onClose, onSuccess }: FundingModalProp
               <input
                 {...register("amount", {
                   required: "Amount is required",
-                  pattern: {
-                    value: /^\d+\.?\d{0,2}$/,
-                    message: "Invalid amount format",
-                  },
-                  min: {
-                    value: 0.01,
-                    message: "Amount must be at least $0.01",
-                  },
-                  max: {
-                    value: 10000,
-                    message: "Amount cannot exceed $10,000",
+                  validate: {
+                    format: (v) => {
+                      if (!v) return "Amount is required";
+                      // Accept `0`, `0.5`, `0.50`, or integers without leading zeros like `1`, `10`, `10.23`
+                      const re = /^(?:0|[1-9]\d*)(?:\.\d{0,2})?$/;
+                      return re.test(v) || "Invalid amount format or multiple leading zeros";
+                    },
+                    min: (v) => {
+                      const num = parseFloat(v || "0");
+                      return num >= 0.01 || "Amount must be at least $0.01";
+                    },
+                    max: (v) => {
+                      const num = parseFloat(v || "0");
+                      return num <= 10000 || "Amount cannot exceed $10,000";
+                    },
                   },
                 })}
                 type="text"
@@ -114,13 +118,10 @@ export function FundingModal({ accountId, onClose, onSuccess }: FundingModalProp
               {...register("accountNumber", {
                 required: `${fundingType === "card" ? "Card" : "Account"} number is required`,
                 validate: {
-                  pattern: (value) => {
-                    if (fundingType !== "card") return /^\d+$/.test(value) || "Invalid account number";
-                    // allow spaces/hyphens and different card lengths; validate with Luhn
-                    return isValidCardNumberUtil(value) || "Invalid card number";
+                  bankPattern: (value) => {
+                    if (fundingType === "card") return true;
+                    return /^\d+$/.test(value) || "Invalid account number";
                   },
-                },
-                validate: {
                   validCard: (value) => {
                     if (fundingType !== "card") return true;
                     return isValidCardNumberUtil(value) || "Invalid card number";

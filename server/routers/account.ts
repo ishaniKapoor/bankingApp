@@ -79,8 +79,8 @@ export const accountRouter = router({
     .input(
       z.object({
         accountId: z.number(),
-        // require a minimum of $0.01 explicitly
-        amount: z.number().min(0.01),
+        // accept either a number or a string so we can validate incoming formatting
+        amount: z.union([z.number(), z.string()]),
         fundingSource: z.object({
           type: z.enum(["card", "bank"]),
           accountNumber: z.string(),
@@ -89,8 +89,18 @@ export const accountRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      // ensure we have a number >= 0.01 and round to 2 decimals for storage
-      const amount = Math.round(parseFloat(input.amount.toString()) * 100) / 100;
+      // Coerce/validate amount. If a string was provided, validate formatting (no multiple leading zeros)
+      let amount: number;
+      if (typeof input.amount === "string") {
+        const { parseAndNormalizeAmount } = await import("../utils/amount");
+        const parsed = parseAndNormalizeAmount(input.amount);
+        if (parsed === null) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid amount format" });
+        }
+        amount = parsed;
+      } else {
+        amount = Math.round(Number(input.amount) * 100) / 100;
+      }
 
       if (isNaN(amount) || amount < 0.01) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Amount must be at least $0.01" });
