@@ -8,6 +8,7 @@ import { users, sessions } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { normalizeEmail, checkTldTypo } from "../utils/email";
 import { isAtLeastAge, isFutureDate, isValidStateCode } from "../utils/validators";
+import { encryptSSN } from "../utils/ssn";
 import { isStrongPassword, passwordFailureReason } from "../utils/password";
 import { formatToE164 } from "../utils/phone";
 
@@ -61,10 +62,14 @@ export const authRouter = router({
 
       const hashedPassword = await bcrypt.hash(input.password, 10);
 
+      // Encrypt SSN before storing
+      const encryptedSsn = encryptSSN(input.ssn);
+
       await db.insert(users).values({
         ...input,
         email: normalizedEmail,
         password: hashedPassword,
+        ssn: encryptedSsn,
       });
 
       // Fetch the created user
@@ -98,6 +103,8 @@ export const authRouter = router({
         (ctx.res as Headers).set("Set-Cookie", `session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=604800`);
       }
 
+      // Never return SSN in API responses
+      if (user) user.ssn = undefined as any;
       return { user: { ...user, password: undefined }, token };
     }),
 
@@ -146,6 +153,7 @@ export const authRouter = router({
         (ctx.res as Headers).set("Set-Cookie", `session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=604800`);
       }
 
+      if (user) user.ssn = undefined as any;
       return { user: { ...user, password: undefined }, token };
     }),
 
