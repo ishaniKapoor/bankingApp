@@ -83,14 +83,42 @@ export default function SignupPage() {
                   {...register("email", {
                     required: "Email is required",
                     pattern: {
-                      value: /^\S+@\S+$/i,
+                      // require basic structure and a dot in the domain
+                      value: /^\S+@\S+\.\S+$/i,
                       message: "Invalid email address",
+                    },
+                    validate: {
+                      checkTld: (value) => {
+                        try {
+                          const domain = value.split("@")[1] || "";
+                          const parts = domain.split(".");
+                          const tld = parts[parts.length - 1]?.toLowerCase() || "";
+                          const commonTypos: Record<string, string> = {
+                            con: "com",
+                            cim: "com",
+                            c0m: "com",
+                            orf: "org",
+                            ogr: "org",
+                            nete: "net",
+                          };
+                          if (tld in commonTypos) {
+                            return `Did you mean .${commonTypos[tld]}?`;
+                          }
+                        } catch (e) {
+                          // fallthrough
+                        }
+                        return true;
+                      },
                     },
                   })}
                   type="email"
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
                 />
                 {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>}
+                {/* Informative note when user types uppercase (emails are normalized) */}
+                {watch("email") && watch("email") !== watch("email").toLowerCase() && (
+                  <p className="mt-1 text-sm text-gray-500">Emails are case-insensitive and will be normalized to lowercase.</p>
+                )}
               </div>
 
               <div>
