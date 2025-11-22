@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { trpc } from "@/lib/trpc/client";
-import { isValidCardNumber as isValidCardNumberUtil } from "@/server/utils/payment";
+import { isValidCardNumber as isValidCardNumberUtil, getCardType } from "@/server/utils/payment";
 
 interface FundingModalProps {
   accountId: number;
@@ -32,6 +32,8 @@ export function FundingModal({ accountId, onClose, onSuccess }: FundingModalProp
   });
 
   const fundingType = watch("fundingType");
+    const accountNumberValue = watch("accountNumber");
+    const detectedCardType = fundingType === "card" && accountNumberValue ? getCardType(accountNumberValue) : null;
   const fundAccountMutation = trpc.account.fundAccount.useMutation();
 
   const onSubmit = async (data: FundingFormData) => {
@@ -133,6 +135,9 @@ export function FundingModal({ accountId, onClose, onSuccess }: FundingModalProp
               placeholder={fundingType === "card" ? "1234567812345678" : "123456789"}
             />
             {errors.accountNumber && <p className="mt-1 text-sm text-red-600">{errors.accountNumber.message}</p>}
+            {fundingType === "card" && accountNumberValue && (
+              <p className="mt-1 text-sm text-gray-500">Detected card type: {detectedCardType || "unknown"}</p>
+            )}
           </div>
 
           {fundingType === "bank" && (
